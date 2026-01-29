@@ -1,0 +1,99 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      vertical:
+        description: 'Vertical to deploy (or "all")'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - forge
+          - counsel
+          - ledger
+          - vitals
+          - harvest
+          - shield
+          - foundry
+          - dwelling
+          - freight
+          - scribe
+          - sentinel
+          - fleet
+          - grant
+          - sustain
+          - molar
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      verticals: ${{ steps.filter.outputs.verticals }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed verticals
+        id: filter
+        run: |
+          if [ "${{ github.event.inputs.vertical }}" != "" ] && [ "${{ github.event.inputs.vertical }}" != "all" ]; then
+            echo "verticals=[\"${{ github.event.inputs.vertical }}\"]" >> $GITHUB_OUTPUT
+          else
+            # Detect changes in apps/ directory
+            CHANGED=$(git diff --name-only HEAD~1 HEAD -- apps/ | cut -d'/' -f2 | sort -u | jq -R . | jq -s .)
+            if [ "$CHANGED" == "[]" ]; then
+              echo "verticals=[]" >> $GITHUB_OUTPUT
+            else
+              echo "verticals=$CHANGED" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  deploy:
+    name: Deploy ${{ matrix.vertical }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.verticals != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        vertical: ${{ fromJson(needs.detect-changes.outputs.verticals) }}
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build vertical
+        run: pnpm --filter @tributaries/${{ matrix.vertical }} build
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_${{ matrix.vertical }} }}
+          working-directory: apps/${{ matrix.vertical }}
+          vercel-args: ${{ github.event.inputs.environment == 'production' && '--prod' || '' }}

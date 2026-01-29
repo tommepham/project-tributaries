@@ -1,0 +1,100 @@
+# Development infrastructure
+# Run with: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: tributaries-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tributaries
+      POSTGRES_PASSWORD: tributaries_dev
+      POSTGRES_DB: tributaries
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tributaries']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and queues
+  redis:
+    image: redis:7-alpine
+    container_name: tributaries-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # n8n for workflow automation
+  n8n:
+    image: n8nio/n8n
+    container_name: tributaries-n8n
+    restart: unless-stopped
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=tributaries_dev
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=tributaries
+      - DB_POSTGRESDB_PASSWORD=tributaries_dev
+    ports:
+      - '5678:5678'
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Qdrant vector database (optional, for advanced RAG)
+  qdrant:
+    image: qdrant/qdrant
+    container_name: tributaries-qdrant
+    restart: unless-stopped
+    ports:
+      - '6333:6333'
+      - '6334:6334'
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # MinIO for S3-compatible object storage
+  minio:
+    image: minio/minio
+    container_name: tributaries-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: tributaries
+      MINIO_ROOT_PASSWORD: tributaries_dev
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
+  qdrant_data:
+  minio_data:

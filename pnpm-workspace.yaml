@@ -1,0 +1,9 @@
+# Project Tributaries Workspace Configuration
+# Monorepo supporting 15 vertical SaaS experiments with shared infrastructure
+
+packages:
+  # Vertical Applications (15 independent products)
+  - 'apps/*'
+
+  # Shared Packages (common infrastructure)
+  - 'packages/*'
