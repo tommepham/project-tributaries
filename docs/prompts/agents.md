@@ -1,6 +1,8 @@
 # Project Tributaries - Agent Initialization
 
-> **FOR NEXT SESSION**: Read this document first. Your job is to continue building Project Tributaries.
+> **FOR NEXT SESSION**: Read this document first. Your job is to continue building Project Tributaries:
+
+docs\prompts\Agent Initialization Prompt.md
 
 ---
 
@@ -122,3 +124,5 @@ When deciding where to invest effort:
 > "The riches are in the niches. The tools are free. The timing is now."
 
 Your job is to turn these tributaries into rivers. Start with validation, follow the signal, and build what customers will pay for.
+
+
